@@ -1,0 +1,20 @@
+services:
+  anvil:
+    image: ghcr.io/foundry-rs/anvil:latest
+    ports:
+      - "31337:31337"
+    command: anvil --host 0.0.0.0 --port 31337
+    healthcheck:
+      test: ["CMD", "cast", "block-number", "--rpc-url", "http://localhost:31337"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

@@ -1,0 +1,21 @@
+{
+  "name": "smartshvydkojardem",
+  "version": "1.0.0",
+  "description": "Emergency Response Coordination MVP",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:all": "npm run test --workspaces --if-present",
+    "test:contracts": "forge test --root contracts",
+    "build:contracts": "forge build --root contracts",
+    "fmt:contracts": "forge fmt --check --root contracts",
+    "dev:anvil": "anvil --port 31337 --host 0.0.0.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "workspaces": [
+    "apps/*",
+    "shared-types"
+  ]
+}

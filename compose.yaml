@@ -1,0 +1,10 @@
+services:
+  anvil:
+    image: ghcr.io/foundry-rs/anvil:latest
+    ports:
+      - "31337:31337"
+    command: anvil --host 0.0.0.0 --port 31337
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"

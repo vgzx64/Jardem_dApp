@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  contracts:
+    name: Smart contracts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Forge fmt check
+        run: forge fmt --check --root contracts
+
+      - name: Forge build
+        run: forge build --sizes --root contracts
+
+      - name: Forge tests
+        run: forge test --root contracts
+
+  backend:
+    name: Backend APIs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Node
+        uses: actions/setup-node@19404575c1351404787782779248580770e62edc # v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma clients
+        run: |
+          cd apps/medical-module && npx prisma generate
+          cd ../logistics-module && npx prisma generate
+          cd ../integration-layer && npx prisma generate
+
+      - name: Run backend tests
+        run: npm run test:all

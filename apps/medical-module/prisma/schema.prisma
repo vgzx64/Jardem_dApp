@@ -1,0 +1,32 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model CallRecord {
+  id        String   @id @default(cuid())
+  eventId   String   @unique
+  operationId String
+  status    String   @default("PENDING")
+  priority  String   @default("ROUTINE")
+  patientId String?
+  payload   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OutboxEvent {
+  id        String   @id @default(cuid())
+  eventId   String
+  operationId String
+  payload   String
+  status    String   @default("PENDING")
+  txHash    String?
+  createdAt DateTime @default(now())
+  sentAt    DateTime?
+}
