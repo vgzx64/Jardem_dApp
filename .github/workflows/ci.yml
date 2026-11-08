@@ -20,6 +20,9 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Install dependencies
+        run: git clone https://github.com/foundry-rs/forge-std contracts/lib/forge-std
+
       - name: Forge fmt check
         run: forge fmt --check --root contracts
 
@@ -102,6 +105,9 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install dependencies
+        run: git clone https://github.com/foundry-rs/forge-std contracts/lib/forge-std
 
       - name: Start Anvil
         run: anvil --port 31337 --host 0.0.0.0 > /tmp/anvil.log 2>&1 &
