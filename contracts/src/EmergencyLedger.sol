@@ -15,11 +15,7 @@ contract EmergencyLedger {
     mapping(bytes32 => bool) public processedOperationId;
 
     event EventRecorded(
-        string indexed eventId,
-        string indexed operationId,
-        bytes32 payloadHash,
-        address submitter,
-        uint256 timestamp
+        string indexed eventId, string indexed operationId, bytes32 payloadHash, address submitter, uint256 timestamp
     );
 
     error NotRelayer();
@@ -40,11 +36,10 @@ contract EmergencyLedger {
      * @dev Records an event proof on-chain. Reverts if the eventId or
      * operationId was already processed (replay protection).
      */
-    function recordEvent(
-        string calldata eventId,
-        string calldata operationId,
-        bytes32 payloadHash
-    ) external onlyRelayer {
+    function recordEvent(string calldata eventId, string calldata operationId, bytes32 payloadHash)
+        external
+        onlyRelayer
+    {
         bytes32 eventIdHash = keccak256(abi.encodePacked(eventId));
         bytes32 operationIdHash = keccak256(abi.encodePacked(operationId));
 

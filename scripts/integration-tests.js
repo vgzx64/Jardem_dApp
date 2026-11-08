@@ -10,7 +10,8 @@
  */
 
 const assert = require("assert");
-const {execSync} = require("child_process");
+const path = require("path");
+const { execSync } = require("child_process");
 
 const MEDICAL = "http://localhost:3001";
 const LOGISTICS = "http://localhost:3002";
@@ -35,13 +36,13 @@ function test(name, fn) {
 
 async function fetchJson(url, opts = {}) {
   const res = await fetch(url, {
-    headers: {"Content-Type": "application/json", ...opts.headers},
+    headers: { "Content-Type": "application/json", ...opts.headers },
     ...opts,
   });
   const body = res.headers.get("content-type")?.includes("application/json")
     ? await res.json()
     : await res.text();
-  return {status: res.status, body};
+  return { status: res.status, body };
 }
 
 async function sleep(ms) {
@@ -60,7 +61,7 @@ async function testE2ESuccess() {
       operationId,
       priority: "CRITICAL",
       patientId: "patient-e2e",
-      payload: {symptoms: ["trauma"]},
+      payload: { symptoms: ["trauma"] },
     }),
   });
   assert.strictEqual(mRes.status, 201, `Medical create failed: ${JSON.stringify(mRes.body)}`);
@@ -72,7 +73,7 @@ async function testE2ESuccess() {
       operationId,
       crewId: "crew-e2e",
       vehicleId: "vehicle-e2e",
-      payload: {location: "scene"},
+      payload: { location: "scene" },
     }),
   });
   assert.strictEqual(lRes.status, 201, `Logistics create failed: ${JSON.stringify(lRes.body)}`);
@@ -85,7 +86,7 @@ async function testE2ESuccess() {
 
   const iRes = await fetchJson(`${INTEGRATION}/events`, {
     method: "POST",
-    body: JSON.stringify({eventId, operationId, module: "medical", payload: {}}),
+    body: JSON.stringify({ eventId, operationId, module: "medical", payload: {} }),
   });
   assert.ok(
     iRes.status === 202 || iRes.status === 200,
@@ -101,38 +102,34 @@ async function testUnauthorizedRejected() {
   // Deploy a fresh contract on Anvil
   execSync(
     `forge script script/DeployEmergencyLedger.s.sol --rpc-url ${ANVIL_RPC} --private-key ${relayerKey} --broadcast 2>&1 | tail -5`,
-    {cwd: "/home/dev2/Code/SmartShvydkoJardem/contracts", encoding: "utf8"}
+    { cwd: path.join(__dirname, "..", "contracts"), encoding: "utf8" }
   );
 
-  // Find the deployed contract address
-  const broadcastDir = execSync(
-    `ls -td broadcast/*/ 2>/dev/null | head -1 | tr -d '/'`,
-    {cwd: "/home/dev2/Code/SmartShvydkoJardem/contracts", encoding: "utf8"}
-  ).trim();
-
-  if (!broadcastDir) {
-    console.log("    (no broadcast dir found, skipping contract-level check)");
+  // Find the deployed contract address in the broadcast output
+  let contractAddr = "";
+  try {
+    const runJson = JSON.parse(
+      execSync(
+        `find broadcast -path "*31337/run-latest.json" -print -quit 2>/dev/null`,
+        { cwd: path.join(__dirname, "..", "contracts"), encoding: "utf8" }
+      ).toString("utf8")
+    );
+    contractAddr = runJson.contractAddress;
+  } catch {
+    console.log("    (no broadcast run-latest.json found, skipping contract-level check)");
     return;
   }
 
-  const runResult = execSync(
-    `find broadcast/${broadcastDir}/31337 -name "run-latest.json" -exec cat {} \\; 2>/dev/null`,
-    {cwd: "/home/dev2/Code/SmartShvydkoJardem/contracts", encoding: "utf8"}
-  );
-
-  const addrMatch = runResult.match(/"contractAddress":"(0x[0-9a-fA-F]+)"/);
-  if (!addrMatch) {
-    console.log("    (contract address not found in broadcast, skipping)");
+  if (!contractAddr) {
+    console.log("    (contract address not found, skipping contract-level check)");
     return;
   }
-
-  const contractAddr = addrMatch[1];
 
   // Calling recordEvent from non-relayer should revert
   try {
     execSync(
       `cast send ${contractAddr} "recordEvent(string,string,bytes32)" "evt-test" "op-test" "0x1234" --rpc-url ${ANVIL_RPC} --private-key ${nonRelayer}`,
-      {cwd: "/home/dev2/Code/SmartShvydkoJardem/contracts", encoding: "utf8"}
+      { cwd: path.join(__dirname, "..", "contracts"), encoding: "utf8" }
     );
     assert.fail("Expected transaction to revert for unauthorized caller");
   } catch (err) {
@@ -151,7 +148,7 @@ async function testIdempotency() {
 
   const res1 = await fetchJson(`${INTEGRATION}/events`, {
     method: "POST",
-    body: JSON.stringify({eventId, operationId, module: "medical", payload: {}}),
+    body: JSON.stringify({ eventId, operationId, module: "medical", payload: {} }),
   });
   assert.ok(
     res1.status === 202 || res1.status === 200,
@@ -160,18 +157,19 @@ async function testIdempotency() {
 
   const res2 = await fetchJson(`${INTEGRATION}/events`, {
     method: "POST",
-    body: JSON.stringify({eventId, operationId: "op-different", module: "medical", payload: {}}),
+    body: JSON.stringify({ eventId, operationId: "op-different", module: "medical", payload: {} }),
   });
   assert.strictEqual(res2.status, 200, `Duplicate should return 200`);
   assert.strictEqual(res2.body.status, "duplicate", `Expected "duplicate" status`);
 
   const res3 = await fetchJson(`${INTEGRATION}/events`, {
     method: "POST",
-    body: JSON.stringify({eventId: "evt-different", operationId, module: "logistics", payload: {}}),
+    body: JSON.stringify({ eventId: "evt-different", operationId, module: "logistics", payload: {} }),
   });
   assert.strictEqual(res3.status, 200, `Duplicate opId should return 200`);
   assert.strictEqual(res3.body.status, "duplicate", `Expected "duplicate" status`);
 }
+
 // Test 4: Module failure - event queued in SQLite outbox
 async function testModuleFailureQueued() {
   const eventId = `evt-fail-${Date.now()}`;
@@ -183,7 +181,7 @@ async function testModuleFailureQueued() {
       eventId,
       operationId,
       priority: "URGENT",
-      payload: {test: "failure-scenario"},
+      payload: { test: "failure-scenario" },
     }),
   });
   assert.strictEqual(res.status, 201);
@@ -205,7 +203,7 @@ async function testDataMismatchAlert() {
       eventId,
       operationId,
       priority: "CRITICAL",
-      payload: {test: "mismatch"},
+      payload: { test: "mismatch" },
     }),
   });
 
@@ -214,7 +212,7 @@ async function testDataMismatchAlert() {
     body: JSON.stringify({
       eventId,
       operationId,
-      payload: {test: "mismatch"},
+      payload: { test: "mismatch" },
     }),
   });
 
@@ -222,7 +220,10 @@ async function testDataMismatchAlert() {
   const lRecord = await fetchJson(`${LOGISTICS}/assignments/${eventId}`);
   assert.strictEqual(mRecord.body.status, "DISPATCHED", "Medical should be DISPATCHED");
   assert.strictEqual(lRecord.body.status, "UNASSIGNED", "Logistics should be UNASSIGNED");
-  assert.ok(mRecord.body.status === "DISPATCHED" && lRecord.body.status === "UNASSIGNED", "State mismatch exists");
+  assert.ok(
+    mRecord.body.status === "DISPATCHED" && lRecord.body.status === "UNASSIGNED",
+    "State mismatch exists"
+  );
 }
 
 // Test 6: Recovery after failure - processing resumes
@@ -235,7 +236,7 @@ async function testRecovery() {
     body: JSON.stringify({
       eventId,
       operationId,
-      payload: {test: "recovery"},
+      payload: { test: "recovery" },
     }),
   });
 
@@ -245,7 +246,7 @@ async function testRecovery() {
 
   const res = await fetchJson(`${INTEGRATION}/events`, {
     method: "POST",
-    body: JSON.stringify({eventId, operationId, module: "medical", payload: {}}),
+    body: JSON.stringify({ eventId, operationId, module: "medical", payload: {} }),
   });
   assert.ok(
     res.status === 202 || res.status === 200,

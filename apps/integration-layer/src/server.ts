@@ -1,10 +1,14 @@
 import express from "express";
 import {PrismaClient} from "@prisma/client";
 import Redis from "ioredis";
+import {pathToFileURL} from "url";
 import {Status} from "@emergency/shared-types";
 
 if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = "file:/home/dev2/Code/SmartShvydkoJardem/apps/integration-layer/prisma/dev.sqlite";
+  process.env.DATABASE_URL = new URL(
+    "../prisma/dev.sqlite",
+    import.meta.url
+  ).href;
 }
 if (!process.env.REDIS_URL) {
   process.env.REDIS_URL = "redis://localhost:6379";
@@ -100,8 +104,12 @@ app.post("/relay", async (_req, res) => {
 });
 
 const PORT = process.env.PORT || 3003;
-app.listen(PORT, () => {
-  console.log(`Integration layer listening on ${PORT}`);
-});
+const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  app.listen(PORT, () => {
+    console.log(`Integration layer listening on ${PORT}`);
+  });
+}
 
 export default app;
+export { app, prisma };

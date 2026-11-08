@@ -7,9 +7,7 @@ import {EmergencyLedger} from "../src/EmergencyLedger.sol";
 
 contract DeployEmergencyLedger is Script {
     function run() public {
-        uint256 deployerPrivateKey = uint256(
-            keccak256(abi.encodePacked("deployer-key"))
-        );
+        uint256 deployerPrivateKey = uint256(keccak256(abi.encodePacked("deployer-key")));
 
         vm.startBroadcast(deployerPrivateKey);
 

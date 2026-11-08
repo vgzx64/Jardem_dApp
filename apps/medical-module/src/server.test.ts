@@ -1,12 +1,18 @@
+import {fileURLToPath} from "url";
+import {dirname} from "path";
 import {describe, it, expect, beforeAll, afterAll} from "vitest";
 import {PrismaClient} from "@prisma/client";
-import app from "./server";
+import request from "supertest";
 import {Status} from "@emergency/shared-types";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const appDir = dirname(__dirname);
 if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = "file:/home/dev2/Code/SmartShvydkoJardem/apps/medical-module/prisma/dev.sqlite";
+  process.env.DATABASE_URL = `file:${appDir}/prisma/dev.sqlite`;
 }
 
+const app = (await import("./server")).default;
 const prisma = new PrismaClient();
 
 describe("Medical Module API", () => {
@@ -20,49 +26,38 @@ describe("Medical Module API", () => {
   });
 
   it("POST /calls creates a call record and outbox event", async () => {
-    const res = await fetch("http://localhost:3001/calls", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        eventId: "evt-med-001",
-        operationId: "op-med-001",
-        priority: "CRITICAL",
-        patientId: "patient-1",
-        payload: {symptoms: ["chest pain"]},
-      }),
+    const res = await request(app).post("/calls").send({
+      eventId: "evt-med-001",
+      operationId: "op-med-001",
+      priority: "CRITICAL",
+      patientId: "patient-1",
+      payload: {symptoms: ["chest pain"]},
     });
     expect(res.status).toBe(201);
-    const body = await res.json();
-    expect(body.eventId).toBe("evt-med-001");
-    expect(body.status).toBe(Status.DISPATCHED);
+    expect(res.body.eventId).toBe("evt-med-001");
+    expect(res.body.status).toBe(Status.DISPATCHED);
   });
 
   it("POST /calls rejects duplicate eventId", async () => {
-    const res = await fetch("http://localhost:3001/calls", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        eventId: "evt-med-001",
-        operationId: "op-med-002",
-        payload: {},
-      }),
+    const res = await request(app).post("/calls").send({
+      eventId: "evt-med-001",
+      operationId: "op-med-002",
+      payload: {},
     });
     expect(res.status).toBe(409);
   });
 
   it("GET /calls/:eventId returns the record", async () => {
-    const res = await fetch("http://localhost:3001/calls/evt-med-001");
+    const res = await request(app).get("/calls/evt-med-001");
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.eventId).toBe("evt-med-001");
+    expect(res.body.eventId).toBe("evt-med-001");
   });
 
   it("GET /outbox/pending returns the pending outbox event", async () => {
-    const res = await fetch("http://localhost:3001/outbox/pending");
+    const res = await request(app).get("/outbox/pending");
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.length).toBeGreaterThan(0);
-    expect(body[0].eventId).toBe("evt-med-001");
-    expect(body[0].status).toBe("PENDING");
+    expect(res.body.length).toBeGreaterThan(0);
+    expect(res.body[0].eventId).toBe("evt-med-001");
+    expect(res.body[0].status).toBe("PENDING");
   });
 });

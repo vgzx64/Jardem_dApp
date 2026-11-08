@@ -14,9 +14,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          submodules: recursive
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -35,22 +34,109 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@19404575c1351404787782779248580770e62edc # v4
+        uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate Prisma clients
+      - name: Generate Prisma clients and push schema
         run: |
-          cd apps/medical-module && npx prisma generate
-          cd ../logistics-module && npx prisma generate
-          cd ../integration-layer && npx prisma generate
+          for dir in apps/medical-module apps/logistics-module apps/integration-layer; do
+            cd "$dir"
+            DATABASE_URL="file:./prisma/dev.sqlite" npx prisma generate
+            DATABASE_URL="file:./prisma/dev.sqlite" npx prisma db push --accept-data-loss
+            cd ../..
+          done
 
-      - name: Run backend tests
-        run: npm run test:all
+      - name: Run medical module tests
+        run: cd apps/medical-module && DATABASE_URL="file:./prisma/dev.sqlite" npx vitest run
+
+      - name: Run logistics module tests
+        run: cd apps/logistics-module && DATABASE_URL="file:./prisma/dev.sqlite" npx vitest run
+
+      - name: Run integration layer tests
+        run: cd apps/integration-layer && DATABASE_URL="file:./prisma/dev.sqlite" REDIS_URL="redis://localhost:6379" npx vitest run
+
+  integration:
+    name: End-to-end integration & load tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma clients and push schema
+        run: |
+          for dir in apps/medical-module apps/logistics-module apps/integration-layer; do
+            cd "$dir"
+            DATABASE_URL="file:./prisma/dev.sqlite" npx prisma generate
+            DATABASE_URL="file:./prisma/dev.sqlite" npx prisma db push --accept-data-loss
+            cd ../..
+          done
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Start Anvil
+        run: anvil --port 31337 --host 0.0.0.0 > /tmp/anvil.log 2>&1 &
+        shell: bash
+
+      - name: Start medical module
+        run: cd apps/medical-module && DATABASE_URL="file:./prisma/dev.sqlite" npx tsx watch src/server.ts > /tmp/medical.log 2>&1 &
+        shell: bash
+
+      - name: Start logistics module
+        run: cd apps/logistics-module && DATABASE_URL="file:./prisma/dev.sqlite" npx tsx watch src/server.ts > /tmp/logistics.log 2>&1 &
+        shell: bash
+
+      - name: Start integration layer
+        run: cd apps/integration-layer && DATABASE_URL="file:./prisma/dev.sqlite" REDIS_URL="redis://localhost:6379" npx tsx watch src/server.ts > /tmp/integration.log 2>&1 &
+        shell: bash
+
+      - name: Wait for servers
+        run: |
+          for i in {1..90}; do
+            if curl -s http://localhost:3001/calls >/dev/null 2>&1 \
+               && curl -s http://localhost:3002/assignments >/dev/null 2>&1 \
+               && curl -s http://localhost:3003/events >/dev/null 2>&1; then
+              echo "All servers ready";
+              exit 0;
+            fi
+            sleep 1;
+          done
+          echo "Servers failed to start";
+          cat /tmp/medical.log /tmp/logistics.log /tmp/integration.log;
+          exit 1;
+        shell: bash
+
+      - name: Run integration tests
+        run: node scripts/integration-tests.js
+
+      - name: Run load test
+        run: node scripts/load-test.js

@@ -1,10 +1,14 @@
 import express from "express";
 import {PrismaClient} from "@prisma/client";
 import {Status} from "@emergency/shared-types";
+import {pathToFileURL} from "url";
 import {v4 as uuidv4} from "uuid";
 
 if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = "file:/home/dev2/Code/SmartShvydkoJardem/apps/medical-module/prisma/dev.sqlite";
+  process.env.DATABASE_URL = new URL(
+    "../prisma/dev.sqlite",
+    import.meta.url
+  ).href;
 }
 
 const app = express();
@@ -80,8 +84,12 @@ app.patch("/outbox/:id", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Medical module listening on ${PORT}`);
-});
+const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  app.listen(PORT, () => {
+    console.log(`Medical module listening on ${PORT}`);
+  });
+}
 
 export default app;
+export { app, prisma };
